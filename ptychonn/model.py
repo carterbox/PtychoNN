@@ -3,41 +3,88 @@ import torch
 import torch.nn as nn
 
 
+class Multiply(nn.Module):
+    """Just multiplies the tensor by a constant."""
+
+    def __init__(self, constant: float) -> None:
+        super().__init__()
+        self.constant = constant
+
+    def forward(self, x):
+        return x * self.constant
+
+
 class ReconSmallPhaseModel(nn.Module):
+    """
 
-    def __init__(self, nconv: int = 16, use_batch_norm=False):
+    Parameters
+    ----------
+    nconv: int
+        The number of filters in the first and last convolutional layers
+    use_batch_norm: bool
+        Whether to use batch normalization before activation layers
+    min_shape: int
+        The minimum required shape for the input diffraction patterns
+
+    """
+
+    def __init__(
+        self,
+        nconv: int = 16,
+        use_batch_norm=False,
+        with_amplitude=False,
+        with_phase=True,
+    ):
         super(ReconSmallPhaseModel, self).__init__()
-        self.nconv = nconv
-        self.use_batch_norm = use_batch_norm
 
-        self.encoder = nn.Sequential(  # Appears sequential has similar functionality as TF avoiding need for separate model definition and activ
-            *self.down_block(1, self.nconv),
-            *self.down_block(self.nconv, self.nconv * 2),
-            *self.down_block(self.nconv * 2, self.nconv * 4),
-            *self.down_block(self.nconv * 4, self.nconv * 8),
+        # The minimum shape is a result of the number of pooling operations
+        self._min_shape = 16
+        self._with_phase = with_phase
+        self._with_amplitude = with_amplitude
+
+        self.encoder = nn.Sequential(
+            *self.down_block(1, nconv, use_batch_norm),
+            *self.down_block(nconv, nconv * 2, use_batch_norm),
+            *self.down_block(nconv * 2, nconv * 4, use_batch_norm),
+            *self.down_block(nconv * 4, nconv * 8, use_batch_norm),
         )
 
-        # amplitude model
-        #self.decoder_amplitude = nn.Sequential(
-        #    *self.up_block(self.nconv * 8, self.nconv * 8),
-        #    *self.up_block(self.nconv * 8, self.nconv * 4),
-        #    *self.up_block(self.nconv * 4, self.nconv * 2),
-        #    *self.up_block(self.nconv * 2, self.nconv * 1),
-        #    nn.Conv2d(self.nconv * 1, 1, 3, stride=1, padding=(1,1)),
-        #)
+        if with_amplitude:
+            self.decoder_amplitude = nn.Sequential(
+                *self.up_block(nconv * 8, nconv * 8, use_batch_norm),
+                *self.up_block(nconv * 8, nconv * 4, use_batch_norm),
+                *self.up_block(nconv * 4, nconv * 2, use_batch_norm),
+                *self.up_block(nconv * 2, nconv * 1, use_batch_norm),
+                nn.Conv2d(nconv * 1, 1, 3, stride=1, padding=(1, 1)),
+            )
 
-        # phase model
-        self.decoder_phase = nn.Sequential(
-            *self.up_block(self.nconv * 8, self.nconv * 8),
-            *self.up_block(self.nconv * 8, self.nconv * 4),
-            *self.up_block(self.nconv * 4, self.nconv * 2),
-            *self.up_block(self.nconv * 2, self.nconv * 1),
-            nn.Conv2d(self.nconv * 1, 1, 3, stride=1, padding=(1, 1)),
-            nn.BatchNorm2d(1) if self.use_batch_norm else torch.nn.Identity(),
-            nn.Tanh(),
-        )
+        if with_phase:
+            self.decoder_phase = nn.Sequential(
+                *self.up_block(nconv * 8, nconv * 8, use_batch_norm),
+                *self.up_block(nconv * 8, nconv * 4, use_batch_norm),
+                *self.up_block(nconv * 4, nconv * 2, use_batch_norm),
+                *self.up_block(nconv * 2, nconv * 1, use_batch_norm),
+                nn.Conv2d(nconv * 1, 1, 3, stride=1, padding=(1, 1)),
+                nn.BatchNorm2d(1) if use_batch_norm else torch.nn.Identity(),
+                nn.Tanh(),
+                # Restore -pi to pi range using tanh activation (-1 to 1) for
+                # phase and multiplying by pi
+                Multiply(np.pi),
+            )
 
-    def down_block(self, filters_in, filters_out):
+    @property
+    def min_shape(self):
+        return self._min_shape
+
+    @property
+    def with_amplitude(self):
+        return self._with_amplitude
+
+    @property
+    def with_phase(self):
+        return self._with_phase
+
+    def down_block(self, filters_in, filters_out, use_batch_norm):
         return [
             nn.Conv2d(
                 in_channels=filters_in,
@@ -47,16 +94,16 @@ class ReconSmallPhaseModel(nn.Module):
                 padding=(1, 1),
             ),
             nn.BatchNorm2d(filters_out)
-            if self.use_batch_norm else torch.nn.Identity(),
+            if use_batch_norm else torch.nn.Identity(),
             nn.ReLU(),
             nn.Conv2d(filters_out, filters_out, 3, stride=1, padding=(1, 1)),
             nn.BatchNorm2d(filters_out)
-            if self.use_batch_norm else torch.nn.Identity(),
+            if use_batch_norm else torch.nn.Identity(),
             nn.ReLU(),
             nn.MaxPool2d((2, 2))
         ]
 
-    def up_block(self, filters_in, filters_out):
+    def up_block(self, filters_in, filters_out, use_batch_norm):
         return [
             nn.Conv2d(
                 filters_in,
@@ -66,22 +113,17 @@ class ReconSmallPhaseModel(nn.Module):
                 padding=(1, 1),
             ),
             nn.BatchNorm2d(filters_out)
-            if self.use_batch_norm else torch.nn.Identity(),
+            if use_batch_norm else torch.nn.Identity(),
             nn.ReLU(),
             nn.Conv2d(filters_out, filters_out, 3, stride=1, padding=(1, 1)),
             nn.BatchNorm2d(filters_out)
-            if self.use_batch_norm else torch.nn.Identity(),
+            if use_batch_norm else torch.nn.Identity(),
             nn.ReLU(),
             nn.Upsample(scale_factor=2, mode='bilinear')
         ]
 
     def forward(self, x):
+        assert x.shape[-1] >= self.min_shape
+        assert x.shape[-2] >= self.min_shape
         with torch.cuda.amp.autocast():
-            x1 = self.encoder(x)
-            #amplitude = self.decoder_amplitude(x1)
-            phase = self.decoder_phase(x1)
-
-            #Restore -pi to pi range
-            phase = phase * np.pi  #Using tanh activation (-1 to 1) for phase so multiply by pi
-
-        return phase
+            return self.decoder_phase(self.encoder(x))
