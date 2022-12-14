@@ -1,6 +1,7 @@
 # PtychoNN specific
 settings.json
 tests/result/
+tests/simulated/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
