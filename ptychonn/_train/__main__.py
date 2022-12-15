@@ -78,8 +78,9 @@ def train_cli(
         X_train=data,
         Y_train=patches,
         out_dir=out_dir,
-        epochs=50,
+        epochs=128,
         batch_size=64,
+        epochs_per_half_cycle=16,
     )
 
 
@@ -90,6 +91,7 @@ def train(
     load_model_path: pathlib.Path | None = None,
     epochs: int = 1,
     batch_size: int = 64,
+    epochs_per_half_cycle: int = 6,
 ):
     """Train a PtychoNN model.
 
@@ -122,7 +124,7 @@ def train(
         valid_data_ratio=0.1,
     )
     trainer.setOptimizationParams(
-        epochs_per_half_cycle=6,
+        epochs_per_half_cycle=epochs_per_half_cycle,
         max_lr=1e-3,
         min_lr=1e-4,
     )
@@ -346,12 +348,19 @@ class Trainer():
             import tifffile
             os.makedirs(self.output_path / 'reference', exist_ok=True)
             os.makedirs(self.output_path / 'inference', exist_ok=True)
-            tifffile.imwrite(
-                self.output_path / f'reference/{epoch:05d}.tiff',
-                phs[0, 0].detach().cpu().numpy().astype(np.float32))
+            if epoch <= 1:
+                tifffile.imwrite(
+                    self.output_path / f'reference/{epoch:05d}.tiff',
+                    phs[0, 0].detach().cpu().numpy().astype(np.float32))
             tifffile.imwrite(
                 self.output_path / f'inference/{epoch:05d}.tiff',
                 pred_phs[0, 0].detach().cpu().numpy().astype(np.float32))
+
+            ptychonn.plot.plot_metrics(
+                self.metrics,
+                save_fname=self.output_path / 'metrics.svg',
+                show_fig=False,
+            )
 
     @staticmethod
     def customLoss(
