@@ -113,7 +113,9 @@ def train(
     logger.info("Creating the training model...")
 
     trainer = Trainer(
-        model=ptychonn.model.ReconSmallPhaseModel(),
+        model=ptychonn.model.ReconSmallPhaseModel(
+            nconv=X_train.shape[-1] // 2,
+        ),
         batch_size=batch_size * torch.cuda.device_count(),
         output_path=out_dir,
         output_suffix='',
