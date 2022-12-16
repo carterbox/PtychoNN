@@ -143,11 +143,40 @@ def train(
         show_fig=False,
     )
 
+def gaussian_nll_loss(
+    input: torch.Tensor,
+    target: torch.Tensor,
+    var: torch.Tensor,
+    eps: float = 1e-6,
+):
+    """Plucked from torch.nn.functional; skips input shape checks."""
+    if torch.overrides.has_torch_function_variadic(input, target, var):
+        return torch.overrides.handle_torch_function(
+            gaussian_nll_loss,
+            (input, target, var),
+            input,
+            target,
+            var,
+            eps=eps,
+        )
+
+    # Entries of var must be non-negative
+    if torch.any(var < 0):
+        raise ValueError("var has negative entry/entries")
+
+    # Clamp for stability
+    var = var.clone()
+    with torch.no_grad():
+        var.clamp_(min=eps)
+
+    # Calculate the loss
+    loss = 0.5 * (torch.log(var) + (input - target)**2 / var)
+    return loss.sum()
+
 
 class Trainer():
     """A object that manages training PtychoNN
     """
-
     def __init__(
         self,
         model: ptychonn.model.ReconSmallPhaseModel,
@@ -237,7 +266,11 @@ class Trainer():
         self.max_lr = max_lr
         self.min_lr = min_lr
 
-        self.criterion = self.customLoss
+        self.certainty = torch.ones(
+            *self.Y_ph_train_full.shape[-2:],
+            requires_grad=True,
+        )
+        self.criterion = gaussian_nll_loss
         self.optimizer = torch.optim.Adam(
             self.model.parameters(),
             lr=self.max_lr,
@@ -269,6 +302,7 @@ class Trainer():
                 device_ids=None,  # Default all devices
             )
 
+        self.certainty = self.certainty.to(self.device)
         self.model = self.model.to(self.device)
 
         self.scaler = torch.cuda.amp.GradScaler()
@@ -295,7 +329,7 @@ class Trainer():
             # Divide cumulative loss by number of batches-- slightly inaccurate
             # because last batch is different size
             pred_phs = self.model(ft_images)
-            loss_p = self.criterion(pred_phs, phs, self.ntrain)
+            loss_p = self.criterion(pred_phs, phs, self.certainty)
             # Monitor phase loss but only within support (which may not be same
             # as true amp)
             loss = loss_p
@@ -306,9 +340,9 @@ class Trainer():
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
 
-            tot_loss += loss.detach().item()
-
-            loss_ph += loss_p.detach().item()
+            batch_fraction = len(ft_images) / len(self.train_data)
+            tot_loss += loss.detach().item() * batch_fraction
+            loss_ph += loss_p.detach().item() * batch_fraction
 
             # Update the LR according to the schedule -- CyclicLR updates each
             # batch
@@ -326,11 +360,12 @@ class Trainer():
             phs = phs.to(self.device)
             pred_phs = self.model(ft_images)
 
-            val_loss_p = self.criterion(pred_phs, phs, self.nvalid)
+            val_loss_p = self.criterion(pred_phs, phs, self.certainty)
             val_loss = val_loss_p
 
-            tot_val_loss += val_loss.detach().item()
-            val_loss_ph += val_loss_p.detach().item()
+            batch_fraction = len(ft_images) / len(self.valid_data)
+            tot_val_loss += val_loss.detach().item() * batch_fraction
+            val_loss_ph += val_loss_p.detach().item() * batch_fraction
 
         self.metrics['val_losses'].append([tot_val_loss, val_loss_ph])
 
@@ -363,20 +398,6 @@ class Trainer():
                 save_fname=self.output_path / 'metrics.svg',
                 show_fig=False,
             )
-
-    @staticmethod
-    def customLoss(
-        input: torch.tensor,
-        target: torch.tensor,
-        scaling: float,
-    ):
-        """A loss function which scales according to training set size."""
-        assert torch.all(torch.isfinite(input))
-        assert torch.all(torch.isfinite(target))
-        return torch.sum(torch.mean(
-            torch.abs(input - target),
-            axis=(-1, -2),
-        )) / scaling
 
     # TODO: Use a callback instead of a static method for saving the model?
 
