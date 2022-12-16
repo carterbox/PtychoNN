@@ -374,7 +374,7 @@ class Trainer():
         # Update saved model if val loss is lower
         if (tot_val_loss < self.metrics['best_val_loss']):
             logger.info(
-                "Saving improved model after Val Loss improved from %.5f to %.5f",
+                "Saving improved model after Val Loss improved from %.3e to %.3e",
                 self.metrics['best_val_loss'],
                 tot_val_loss,
             )
