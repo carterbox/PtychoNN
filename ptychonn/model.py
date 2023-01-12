@@ -5,7 +5,6 @@ import torch.nn as nn
 
 class Multiply(nn.Module):
     """Just multiplies the tensor by a constant."""
-
     def __init__(self, constant: float) -> None:
         super().__init__()
         self.constant = constant
@@ -27,7 +26,6 @@ class ReconSmallPhaseModel(nn.Module):
         The minimum required shape for the input diffraction patterns
 
     """
-
     def __init__(
         self,
         nconv: int = 16,

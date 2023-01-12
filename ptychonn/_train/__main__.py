@@ -78,7 +78,7 @@ def train_cli(
         X_train=data,
         Y_train=patches,
         out_dir=out_dir,
-        epochs=128,
+        epochs=10000,
         batch_size=64,
         epochs_per_half_cycle=16,
     )
@@ -321,6 +321,7 @@ class Trainer():
         loss_ph = 0.0
 
         for (ft_images, phs) in self.trainloader:
+            self.optimizer.zero_grad()
 
             # Move everything to device
             ft_images = ft_images.to(self.device)
@@ -336,7 +337,6 @@ class Trainer():
             # Use equiweighted amps and phase
 
             # Zero current grads and do backprop
-            self.optimizer.zero_grad()
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
 
@@ -385,13 +385,17 @@ class Trainer():
             import tifffile
             os.makedirs(self.output_path / 'reference', exist_ok=True)
             os.makedirs(self.output_path / 'inference', exist_ok=True)
-            if epoch <= 1:
+            os.makedirs(self.output_path / 'variance', exist_ok=True)
+            if epoch == 0:
                 tifffile.imwrite(
                     self.output_path / f'reference/{epoch:05d}.tiff',
                     phs[0, 0].detach().cpu().numpy().astype(np.float32))
             tifffile.imwrite(
                 self.output_path / f'inference/{epoch:05d}.tiff',
                 pred_phs[0, 0].detach().cpu().numpy().astype(np.float32))
+            tifffile.imwrite(
+                self.output_path / f'variance/{epoch:05d}.tiff',
+                self.certainty.detach().cpu().numpy().astype(np.float32))
 
             ptychonn.plot.plot_metrics(
                 self.metrics,
