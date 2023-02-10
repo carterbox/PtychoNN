@@ -12,6 +12,8 @@ import torchinfo
 import ptychonn.model
 import ptychonn.plot
 
+from ._loss import gaussian_nll_loss
+
 logger = logging.getLogger(__name__)
 
 
@@ -144,37 +146,6 @@ def train(
         )
 
     return trainer
-
-def gaussian_nll_loss(
-    input: torch.Tensor,
-    target: torch.Tensor,
-    var: torch.Tensor,
-    eps: float = 1e-6,
-):
-    """Plucked from torch.nn.functional; skips input shape checks."""
-    if torch.overrides.has_torch_function_variadic(input, target, var):
-        return torch.overrides.handle_torch_function(
-            gaussian_nll_loss,
-            (input, target, var),
-            input,
-            target,
-            var,
-            eps=eps,
-        )
-
-    # Entries of var must be non-negative
-    if torch.any(var < 0):
-        raise ValueError("var has negative entry/entries")
-
-    # Clamp for stability
-    var = var.clone()
-    with torch.no_grad():
-        var.clamp_(min=eps)
-
-    # Calculate the loss
-    loss = 0.5 * (torch.log(var) + (input - target)**2 / var)
-    return loss.sum()
-
 
 class Trainer():
     """A object that manages training PtychoNN
