@@ -63,7 +63,7 @@ class ReconSmallPhaseModel(nn.Module):
                 *self.up_block(nconv * 4, nconv * 2, use_batch_norm),
                 *self.up_block(nconv * 2, nconv * 1, use_batch_norm),
                 nn.Conv2d(nconv * 1, 1, 3, stride=1, padding=(1, 1)),
-                nn.BatchNorm2d(1) if use_batch_norm else torch.nn.Identity(),
+                *((nn.BatchNorm2d(1),) if use_batch_norm else ()),
                 nn.Tanh(),
                 # Restore -pi to pi range using tanh activation (-1 to 1) for
                 # phase and multiplying by pi
@@ -91,12 +91,10 @@ class ReconSmallPhaseModel(nn.Module):
                 stride=1,
                 padding=(1, 1),
             ),
-            nn.BatchNorm2d(filters_out)
-            if use_batch_norm else torch.nn.Identity(),
+            *((nn.BatchNorm2d(filters_out),) if use_batch_norm else ()),
             nn.ReLU(),
             nn.Conv2d(filters_out, filters_out, 3, stride=1, padding=(1, 1)),
-            nn.BatchNorm2d(filters_out)
-            if use_batch_norm else torch.nn.Identity(),
+            *((nn.BatchNorm2d(filters_out),) if use_batch_norm else ()),
             nn.ReLU(),
             nn.MaxPool2d((2, 2))
         ]
@@ -110,12 +108,10 @@ class ReconSmallPhaseModel(nn.Module):
                 stride=1,
                 padding=(1, 1),
             ),
-            nn.BatchNorm2d(filters_out)
-            if use_batch_norm else torch.nn.Identity(),
+            *((nn.BatchNorm2d(filters_out),) if use_batch_norm else ()),
             nn.ReLU(),
             nn.Conv2d(filters_out, filters_out, 3, stride=1, padding=(1, 1)),
-            nn.BatchNorm2d(filters_out)
-            if use_batch_norm else torch.nn.Identity(),
+            *((nn.BatchNorm2d(filters_out),) if use_batch_norm else ()),
             nn.ReLU(),
             nn.Upsample(scale_factor=2, mode='bilinear')
         ]
