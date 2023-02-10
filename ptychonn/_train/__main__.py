@@ -136,12 +136,12 @@ def train(
 
     if out_dir is not None:
         trainer.plotLearningRate(
-            save_fname=out_dir / 'learning_rate.svg',
+            save_fname=out_dir / 'learning_rate.png',
             show_fig=False,
         )
         ptychonn.plot.plot_metrics(
             trainer.metrics,
-            save_fname=out_dir / 'metrics.svg',
+            save_fname=out_dir / 'metrics.png',
             show_fig=False,
         )
 
@@ -384,26 +384,35 @@ class Trainer():
                     self.output_suffix,
                 )
 
-                import tifffile
                 os.makedirs(self.output_path / 'reference', exist_ok=True)
                 os.makedirs(self.output_path / 'inference', exist_ok=True)
                 os.makedirs(self.output_path / 'variance', exist_ok=True)
+                import matplotlib.pyplot as plt
                 if epoch == 0:
-                    tifffile.imwrite(
-                        self.output_path / f'reference/{epoch:05d}.tiff',
-                        phs[0, 0].detach().cpu().numpy().astype(np.float32))
-                tifffile.imwrite(
-                    self.output_path / f'inference/{epoch:05d}.tiff',
-                    pred_phs[0, 0].detach().cpu().numpy().astype(np.float32))
-                tifffile.imwrite(
-                    self.output_path / f'variance/{epoch:05d}.tiff',
-                    self.certainty.detach().cpu().numpy().astype(np.float32))
+                    plt.imsave(
+                        self.output_path / f'reference/{epoch:05d}.png',
+                        phs[0, 0].detach().cpu().numpy().astype(np.float32),
+                        vmin=-np.pi, vmax=+np.pi,
+                        cmap=plt.cm.twilight,
+                    )
+                plt.imsave(
+                    self.output_path / f'inference/{epoch:05d}.png',
+                    pred_phs[0, 0].detach().cpu().numpy().astype(np.float32),
+                        vmin=-np.pi, vmax=+np.pi,
+                        cmap=plt.cm.twilight,
+                )
+                plt.imsave(
+                    self.output_path / f'variance/{epoch:05d}.png',
+                    self.certainty.detach().cpu().numpy().astype(np.float32),
+                        vmin=0, vmax=+np.pi,
+                        cmap=plt.cm.gray,
+                )
 
-            ptychonn.plot.plot_metrics(
-                self.metrics,
-                save_fname=self.output_path / 'metrics.svg',
-                show_fig=False,
-            )
+        ptychonn.plot.plot_metrics(
+            self.metrics,
+            save_fname=self.output_path / 'metrics.png',
+            show_fig=False,
+        )
 
     # TODO: Use a callback instead of a static method for saving the model?
 

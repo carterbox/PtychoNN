@@ -8,7 +8,6 @@ def plot_metrics(metrics: dict,
 
     losses_arr = np.array(metrics['losses'])
     val_losses_arr = np.array(metrics['val_losses'])
-    print("Shape of losses array is ", losses_arr.shape)
     fig, ax = plt.subplots(3, sharex=True, figsize=(15, 8))
     ax[0].plot(losses_arr[1:, 0], 'C3o-', label="Train")
     ax[0].plot(val_losses_arr[1:, 0], 'C0o-', label="Val")
