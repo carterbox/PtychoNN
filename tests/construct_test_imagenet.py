@@ -59,7 +59,9 @@ def test_construct_simulated_training_set(
 
     angle = np.pi * patches
 
-    wavefront = (probe * 1.0 * np.exp(1j * angle)).astype(np.complex64)
+    psi = (1.0 * np.exp(1j * angle)).astype(np.complex64)
+
+    wavefront = (probe * psi).astype(np.complex64)
 
     diffraction = np.fft.ifftshift(
         np.square(np.abs(np.fft.fft2(wavefront))),
@@ -67,7 +69,7 @@ def test_construct_simulated_training_set(
     ).astype(np.float32)
     print(diffraction.dtype, diffraction.shape)
 
-    samples = np.linspace(0, num_scan, num=5, dtype=int)
+    samples = np.linspace(0, num_scan, num=5, dtype=int, endpoint=True)
 
     plt.imsave(
         f'{out_dir}/diffraction-imagenet.png',
@@ -87,7 +89,7 @@ def test_construct_simulated_training_set(
     np.savez(
         f'{out_dir}/simulated-imagenet.npz',
         reciprocal=diffraction,
-        real=angle,
+        real=psi,
     )
 
 
