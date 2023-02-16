@@ -1,11 +1,12 @@
 import itertools
 import os
 
-import libimage
 import numpy as np
 import matplotlib.pyplot as plt
 import tike.ptycho
 import tike.ptycho.learn
+
+import h5py
 
 
 def test_construct_simulated_training_set(
@@ -51,11 +52,15 @@ def test_construct_simulated_training_set(
 
     probe = probe[0, 0, 0]
 
-    with np.load(
-            f"{os.environ['HOME']}/Documents/fluffy-umbrella/test/Imagenet64/train_data_batch_1.npz"
-    ) as f:
-        patches = f['data'].reshape(-1, 3, 64, 64)[:, 0] / 255.0 - 0.5
-        print(patches.shape, patches.dtype, patches.min(), patches.max())
+    patches = []
+    for i in range(1,5):
+        with np.load(
+                f"{os.environ['HOME']}/Documents/fluffy-umbrella/test/Imagenet64/train_data_batch_{i}.npz"
+        ) as f:
+            patches.append(f['data'].reshape(-1, 3, 64, 64)[:, 0] / 255.0 - 0.5)
+    patches = np.concatenate(patches, axis=0)
+
+    print(patches.shape, patches.dtype, patches.min(), patches.max())
 
     angle = np.pi * patches
 
@@ -91,6 +96,10 @@ def test_construct_simulated_training_set(
         reciprocal=diffraction,
         real=psi,
     )
+
+    with h5py.File(f'{out_dir}/simulated-imagenet.h5', 'w') as archive:
+        archive.create_dataset('reciprocal', data=diffraction, chunks=True, dtype=np.float32)
+        archive.create_dataset('real', data=psi, chunks=True, dtype=np.complex64)
 
 
 if __name__ == '__main__':
