@@ -12,7 +12,7 @@ import torchinfo
 import ptychonn.model
 import ptychonn.plot
 
-from ._loss import gaussian_nll_loss
+from ._loss import *
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ def train(
     )
     trainer.setOptimizationParams(
         epochs_per_half_cycle=epochs_per_half_cycle,
-        max_lr=1e-3,
+        max_lr=5e-4,
         min_lr=1e-4,
     )
     trainer.initModel(model_params_path=load_model_path)
@@ -263,7 +263,7 @@ class Trainer():
             *self.Y_ph_train_full.shape[-2:],
             requires_grad=True,
         )
-        self.criterion = gaussian_nll_loss
+        self.criterion = ssim_and_gaussian_nll_loss
         self.optimizer = torch.optim.Adam(
             self.model.parameters(),
             lr=self.max_lr,
@@ -370,7 +370,7 @@ class Trainer():
             )
 
         # Update saved model if val loss is lower
-        if (tot_val_loss < self.metrics['best_val_loss']):
+        if (tot_val_loss < self.metrics['best_val_loss'] or epoch % 10 == 0):
             logger.info(
                 "Saving improved model after Val Loss improved from %.3e to %.3e",
                 self.metrics['best_val_loss'],
@@ -388,23 +388,23 @@ class Trainer():
                 os.makedirs(self.output_path / 'inference', exist_ok=True)
                 os.makedirs(self.output_path / 'variance', exist_ok=True)
                 import matplotlib.pyplot as plt
+                sample = np.linspace(0, len(phs), num=5, dtype=int, endpoint=False)
                 if epoch == 0:
                     plt.imsave(
                         self.output_path / f'reference/{epoch:05d}.png',
-                        phs[0, 0].detach().cpu().numpy().astype(np.float32),
+                        np.concatenate(phs[sample, 0].detach().cpu().numpy().astype(np.float32), axis=-1),
                         vmin=-np.pi, vmax=+np.pi,
                         cmap=plt.cm.twilight,
                     )
                 plt.imsave(
                     self.output_path / f'inference/{epoch:05d}.png',
-                    pred_phs[0, 0].detach().cpu().numpy().astype(np.float32),
+                        np.concatenate(pred_phs[sample, 0].detach().cpu().numpy().astype(np.float32), axis=-1),
                         vmin=-np.pi, vmax=+np.pi,
                         cmap=plt.cm.twilight,
                 )
                 plt.imsave(
                     self.output_path / f'variance/{epoch:05d}.png',
                     self.certainty.detach().cpu().numpy().astype(np.float32),
-                        vmin=0, vmax=+np.pi,
                         cmap=plt.cm.gray,
                 )
 

@@ -14,31 +14,62 @@ betas /= np.sum(betas)
 betas = tuple(betas)
 
 
-def msssim_loss(preds, target):
+def msssim_loss(preds, target, *args, **kwargs):
     """A loss function that must be strictly positive to allow for plotting on log scale."""
-    return 1.0 - torchmetrics.functional.multiscale_structural_similarity_index_measure(
-        preds=preds[:, None],
-        target=target[:, None],
-        data_range=1.0,
-        normalize='relu',
-        betas=betas,
+    assert torch.all(torch.isfinite(preds))
+    assert torch.all(torch.isfinite(target))
+    x = 1.0 - torchmetrics.functional.multiscale_structural_similarity_index_measure(
+        preds=preds,
+        target=target,
+        data_range=np.pi*2,
         sigma=0.5,
         kernel_size=5,
+        normalize='relu',
+        betas=betas,
     )
+    assert torch.isfinite(x)
+    return x
 
-def msssim_and_poisson_nll_loss(preds, target):
+def ssim_loss(preds, target, *args, **kwargs):
+    """A loss function that must be strictly positive to allow for plotting on log scale."""
+    assert torch.all(torch.isfinite(preds))
+    assert torch.all(torch.isfinite(target))
+    x = 1.0 - torchmetrics.functional.structural_similarity_index_measure(
+        preds=preds,
+        target=target,
+        data_range=np.pi*2,
+    )
+    assert torch.isfinite(x)
+    return x
+
+def msssim_and_poisson_nll_loss(preds, target, *args, **kwargs):
     """Combine metrics for structure and photon statistics."""
     return msssim_loss(preds, target) + torch.nn.functional.poisson_nll_loss(
-        preds, target,
+        preds, target, log_input=False,
     )
 
 def msssim_and_gaussian_nll_loss(
     input: torch.Tensor,
     target: torch.Tensor,
     var: torch.Tensor,
-    eps: float = 1e-6,):
+    eps: float = 1e-6,
+):
     """Combine metrics for structure and photon statistics."""
     return msssim_loss(input, target) + gaussian_nll_loss(
+        input,
+        target,
+        var,
+        eps,
+    )
+
+def ssim_and_gaussian_nll_loss(
+    input: torch.Tensor,
+    target: torch.Tensor,
+    var: torch.Tensor,
+    eps: float = 1e-6,
+):
+    """Combine metrics for structure and photon statistics."""
+    return ssim_loss(input, target) + gaussian_nll_loss(
         input,
         target,
         var,
