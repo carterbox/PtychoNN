@@ -115,7 +115,7 @@ def train(
     logger.info("Creating the training model...")
 
     trainer = Trainer(
-        model=ptychonn.model.ReconSmallPhaseModel(
+        model=ptychonn.model.OriginalModel(
             nconv=X_train.shape[-1] // 2,
         ),
         batch_size=batch_size * torch.cuda.device_count(),
@@ -322,7 +322,7 @@ class Trainer():
 
             # Divide cumulative loss by number of batches-- slightly inaccurate
             # because last batch is different size
-            pred_phs = self.model(ft_images)
+            pred_phs, _ = self.model(ft_images)
             loss_p = self.criterion(pred_phs, phs, self.certainty)
             # Monitor phase loss but only within support (which may not be same
             # as true amp)
@@ -351,7 +351,7 @@ class Trainer():
         for (ft_images, phs) in self.validloader:
             ft_images = ft_images.to(self.device)
             phs = phs.to(self.device)
-            pred_phs = self.model(ft_images)
+            pred_phs, _ = self.model(ft_images)
 
             val_loss_p = self.criterion(pred_phs, phs, self.certainty)
             val_loss = val_loss_p
